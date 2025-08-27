@@ -1,22 +1,27 @@
-using System.Collections.Generic;
 using System.Linq;
-using System.Web.Mvc;
 using ContosoUniversity.Data;
 using ContosoUniversity.Models.SchoolViewModels;
+using ContosoUniversity.Services;
+using Microsoft.AspNetCore.Mvc;
 
 namespace ContosoUniversity.Controllers
 {
     public class HomeController : BaseController
     {
-        public ActionResult Index()
+        public HomeController(SchoolContext context, NotificationService notificationService) 
+            : base(context, notificationService)
+        {
+        }
+
+        public IActionResult Index()
         {
             return View();
         }
 
-        public ActionResult About()
+        public IActionResult About()
         {
             IQueryable<EnrollmentDateGroup> data = 
-                from student in db.Students
+                from student in _db.Students
                 group student by student.EnrollmentDate into dateGroup
                 select new EnrollmentDateGroup()
                 {
@@ -26,19 +31,18 @@ namespace ContosoUniversity.Controllers
             return View(data.ToList());
         }
 
-        public ActionResult Contact()
+        public IActionResult Contact()
         {
             ViewBag.Message = "Your contact page.";
-
             return View();
         }
 
-        public ActionResult Error()
+        public IActionResult Error()
         {
             return View();
         }
 
-        public ActionResult Unauthorized()
+        public IActionResult Unauthorized()
         {
             ViewBag.Message = "You don't have permission to access this resource.";
             return View();
