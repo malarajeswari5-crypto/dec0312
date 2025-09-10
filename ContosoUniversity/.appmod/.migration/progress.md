@@ -10,18 +10,18 @@
 ## Migration Tasks
 
 ### Phase 1: Package Dependencies Update
-- [ ] Backup current packages.config and .csproj files
-- [ ] Update Microsoft.Data.SqlClient to version 6.0.2 in packages.config
-- [ ] Add Azure.Identity version 1.14.0 to packages.config
-- [ ] Update .csproj file to reference new packages
-- [ ] Remove old System.Data.SqlClient package references
-- [ ] Restore NuGet packages and verify no conflicts
+- [X] Backup current packages.config and .csproj files
+- [X] Update Microsoft.Data.SqlClient to version 6.1.1 in packages.config (found newer version already in PackageReference)
+- [X] Add Azure.Identity version 1.14.0 to packages.config and PackageReference
+- [X] Update .csproj file to reference new packages
+- [X] Remove old System.Data.SqlClient package references from legacy section
+- [in_progress] Restore NuGet packages and verify no conflicts
 
 ### Phase 2: Version Control Setup
 - [X] Check git status and stash any uncommitted changes (excluding .appmod/)
 - [X] Get current timestamp in format yyyyMMddHHmmss: 20250910195320
-- [in_progress] Create new branch: appmod/dotnet-migration-local-sql-server-to-Azure-SQL-MI-instance-20250910195320
-- [ ] Commit initial migration plan and progress files
+- [X] Create new branch: appmod/dotnet-migration-local-sql-server-to-Azure-SQL-MI-instance-20250910195320
+- [X] Commit initial migration plan and progress files
 
 ### Phase 3: Code Updates
 - [ ] Update using statements in Data/SchoolContext.cs
