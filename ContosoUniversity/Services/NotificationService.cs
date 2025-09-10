@@ -1,18 +1,34 @@
+using System;
+using System.Messaging;
+using System.Configuration;
 using ContosoUniversity.Models;
-using Microsoft.Extensions.Logging;
-using System.Text.Json;
+using Newtonsoft.Json;
 
 namespace ContosoUniversity.Services
 {
     public class NotificationService
     {
-        private readonly ILogger<NotificationService> _logger;
-        private readonly List<Notification> _notifications; // In-memory store for demo
+        private readonly string _queuePath;
+        private readonly MessageQueue _queue;
 
-        public NotificationService(ILogger<NotificationService> logger)
+        public NotificationService()
         {
-            _logger = logger;
-            _notifications = new List<Notification>();
+            // Get queue path from configuration or use default
+            _queuePath = ConfigurationManager.AppSettings["NotificationQueuePath"] ?? @".\Private$\ContosoUniversityNotifications";
+            
+            // Ensure the queue exists
+            if (!MessageQueue.Exists(_queuePath))
+            {
+                _queue = MessageQueue.Create(_queuePath);
+                _queue.SetPermissions("Everyone", MessageQueueAccessRights.FullControl);
+            }
+            else
+            {
+                _queue = new MessageQueue(_queuePath);
+            }
+            
+            // Configure queue formatter
+            _queue.Formatter = new XmlMessageFormatter(new Type[] { typeof(string) });
         }
 
         public void SendNotification(string entityType, string entityId, EntityOperation operation, string userName = null)
@@ -35,42 +51,46 @@ namespace ContosoUniversity.Services
                     IsRead = false
                 };
 
-                _notifications.Add(notification);
-                _logger.LogInformation("Notification sent: {Message}", notification.Message);
+                var jsonMessage = JsonConvert.SerializeObject(notification);
+                var message = new Message(jsonMessage)
+                {
+                    Label = $"{entityType} {operation}",
+                    Priority = MessagePriority.Normal
+                };
+
+                _queue.Send(message);
             }
             catch (Exception ex)
             {
-                _logger.LogError(ex, "Failed to send notification");
+                // Log error but don't break the main operation
+                System.Diagnostics.Debug.WriteLine($"Failed to send notification: {ex.Message}");
             }
         }
 
-        public Notification? ReceiveNotification()
+        public Notification ReceiveNotification()
         {
             try
             {
-                var unreadNotification = _notifications.FirstOrDefault(n => !n.IsRead);
-                return unreadNotification;
+                var message = _queue.Receive(TimeSpan.FromSeconds(1));
+                var jsonContent = message.Body.ToString();
+                return JsonConvert.DeserializeObject<Notification>(jsonContent);
+            }
+            catch (MessageQueueException ex) when (ex.MessageQueueErrorCode == MessageQueueErrorCode.IOTimeout)
+            {
+                // No messages available
+                return null;
             }
             catch (Exception ex)
             {
-                _logger.LogError(ex, "Failed to receive notification");
+                System.Diagnostics.Debug.WriteLine($"Failed to receive notification: {ex.Message}");
                 return null;
             }
         }
 
         public void MarkAsRead(int notificationId)
         {
-            var notification = _notifications.FirstOrDefault(n => n.Id == notificationId);
-            if (notification != null)
-            {
-                notification.IsRead = true;
-                _logger.LogInformation("Notification {Id} marked as read", notificationId);
-            }
-        }
-
-        public IEnumerable<Notification> GetAllNotifications()
-        {
-            return _notifications.OrderByDescending(n => n.CreatedAt);
+            // In a real implementation, you might want to store notifications in database as well
+            // for persistence and tracking read status
         }
 
         private string GenerateMessage(string entityType, string entityId, string entityDisplayName, EntityOperation operation)
@@ -79,13 +99,22 @@ namespace ContosoUniversity.Services
                 ? $"{entityType} '{entityDisplayName}'" 
                 : $"{entityType} (ID: {entityId})";
 
-            return operation switch
+            switch (operation)
             {
-                EntityOperation.CREATE => $"New {displayText} has been created",
-                EntityOperation.UPDATE => $"{displayText} has been updated",
-                EntityOperation.DELETE => $"{displayText} has been deleted",
-                _ => $"{displayText} operation: {operation}"
-            };
+                case EntityOperation.CREATE:
+                    return $"New {displayText} has been created";
+                case EntityOperation.UPDATE:
+                    return $"{displayText} has been updated";
+                case EntityOperation.DELETE:
+                    return $"{displayText} has been deleted";
+                default:
+                    return $"{displayText} operation: {operation}";
+            }
+        }
+
+        public void Dispose()
+        {
+            _queue?.Dispose();
         }
     }
 }

@@ -1,20 +1,19 @@
 using System;
-using ContosoUniversity.Data;
-using ContosoUniversity.Models;
+using System.Web.Mvc;
 using ContosoUniversity.Services;
-using Microsoft.AspNetCore.Mvc;
+using ContosoUniversity.Models;
+using ContosoUniversity.Data;
 
 namespace ContosoUniversity.Controllers
 {
     public abstract class BaseController : Controller
     {
-        protected readonly SchoolContext _db;
-        protected readonly NotificationService _notificationService;
+        protected SchoolContext db;
+        protected NotificationService notificationService = new NotificationService();
 
-        protected BaseController(SchoolContext context, NotificationService notificationService)
+        public BaseController()
         {
-            _db = context;
-            _notificationService = notificationService;
+            db = SchoolContextFactory.Create();
         }
 
         protected void SendEntityNotification(string entityType, string entityId, EntityOperation operation)
@@ -27,13 +26,23 @@ namespace ContosoUniversity.Controllers
             try
             {
                 var userName = "System"; // No authentication, use System as default user
-                _notificationService.SendNotification(entityType, entityId, entityDisplayName, operation, userName);
+                notificationService.SendNotification(entityType, entityId, entityDisplayName, operation, userName);
             }
             catch (Exception ex)
             {
                 // Log the error but don't break the main operation
-                Console.WriteLine($"Failed to send notification: {ex.Message}");
+                System.Diagnostics.Debug.WriteLine($"Failed to send notification: {ex.Message}");
             }
+        }
+
+        protected override void Dispose(bool disposing)
+        {
+            if (disposing)
+            {
+                db?.Dispose();
+                notificationService?.Dispose();
+            }
+            base.Dispose(disposing);
         }
     }
 }

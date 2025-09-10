@@ -1,4 +1,5 @@
 using Microsoft.EntityFrameworkCore;
+using System.Configuration;
 
 namespace ContosoUniversity.Data
 {
@@ -6,7 +7,7 @@ namespace ContosoUniversity.Data
     {
         public static SchoolContext Create()
         {
-            var connectionString = "Server=(localdb)\\mssqllocaldb;Database=ContosoUniversity;Trusted_Connection=true;MultipleActiveResultSets=true";
+            var connectionString = ConfigurationManager.ConnectionStrings["DefaultConnection"].ConnectionString;
             var optionsBuilder = new DbContextOptionsBuilder<SchoolContext>();
             optionsBuilder.UseSqlServer(connectionString);
             
