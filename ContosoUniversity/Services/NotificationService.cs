@@ -8,7 +8,7 @@ namespace ContosoUniversity.Services
     public class NotificationService
     {
         private readonly string _queuePath;
-        private readonly MessageQueue _queue;
+        // TODO: MessageQueue is not available in .NET 8.0. Consider using an alternative such as Azure Service Bus, RabbitMQ, or another messaging library.
 
         public NotificationService(IConfiguration configuration)
         {
