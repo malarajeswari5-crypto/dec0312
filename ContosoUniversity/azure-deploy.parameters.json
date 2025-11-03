@@ -1,0 +1,24 @@
+{
+  "$schema": "https://schema.management.azure.com/schemas/2019-04-01/deploymentParameters.json#",
+  "contentVersion": "1.0.0.0",
+  "parameters": {
+    "webAppName": {
+      "value": "contosouniversity-app"
+    },
+    "sqlServerName": {
+      "value": "contosouniversity-sql"
+    },
+    "sqlAdministratorLogin": {
+      "value": "sqladmin"
+    },
+    "sqlAdministratorPassword": {
+   "value": "CAMBIA_ESTA_CONTRASEÑA_SEGURA!"
+    },
+    "location": {
+      "value": "eastus"
+},
+    "sku": {
+      "value": "B1"
+    }
+  }
+}

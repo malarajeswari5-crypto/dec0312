@@ -1,13 +1,20 @@
 using System.Collections.Generic;
+using System.Diagnostics;
 using System.Linq;
-using System.Web.Mvc;
 using ContosoUniversity.Data;
+using ContosoUniversity.Models;
 using ContosoUniversity.Models.SchoolViewModels;
+using ContosoUniversity.Services;
+using Microsoft.AspNetCore.Mvc;
 
 namespace ContosoUniversity.Controllers
 {
     public class HomeController : BaseController
     {
+        public HomeController(NotificationService notificationService) : base(notificationService)
+        {
+        }
+
         public ActionResult Index()
         {
             return View();
@@ -35,7 +42,12 @@ namespace ContosoUniversity.Controllers
 
         public ActionResult Error()
         {
-            return View();
+            return View(new ErrorViewModel { RequestId = Activity.Current?.Id ?? HttpContext.TraceIdentifier });
+        }
+
+        public ActionResult StatusErrorCode(int code)
+        {
+            return View("StatusErrorCode", code);
         }
 
         public ActionResult Unauthorized()
