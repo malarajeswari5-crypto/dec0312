@@ -1,5 +1,4 @@
 using System;
-using MSMQ.Messaging;
 using Microsoft.Extensions.Configuration;
 using ContosoUniversity.Models;
 using Newtonsoft.Json;
