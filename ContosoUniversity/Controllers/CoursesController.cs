@@ -14,6 +14,9 @@ namespace ContosoUniversity.Controllers
 {
     public class CoursesController : BaseController
     {
+        public CoursesController(ContosoUniversity.Services.NotificationService notificationService) : base(notificationService)
+        {
+     }
         // GET: Courses
         public ActionResult Index()
         {

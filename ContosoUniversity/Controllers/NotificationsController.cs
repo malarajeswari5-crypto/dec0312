@@ -8,6 +8,9 @@ namespace ContosoUniversity.Controllers
 {
     public class NotificationsController : BaseController
     {
+        public NotificationsController(ContosoUniversity.Services.NotificationService notificationService) : base(notificationService)
+        {
+        }
         // GET: api/notifications - Get pending notifications for admin
         [HttpGet]
         public JsonResult GetNotifications()

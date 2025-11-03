@@ -13,6 +13,9 @@ namespace ContosoUniversity.Controllers
 {
     public class InstructorsController : BaseController
     {
+        public InstructorsController(ContosoUniversity.Services.NotificationService notificationService) : base(notificationService)
+        {
+        }
         // GET: Instructors - All roles can view
         public ActionResult Index(int? id, int? courseID)
         {

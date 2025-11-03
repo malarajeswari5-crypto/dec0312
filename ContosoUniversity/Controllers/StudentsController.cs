@@ -12,6 +12,9 @@ namespace ContosoUniversity.Controllers
 {
     public class StudentsController : BaseController
     {
+    public StudentsController(ContosoUniversity.Services.NotificationService notificationService) : base(notificationService)
+        {
+        }
         // GET: Students - Admins and Teachers can view
         public ActionResult Index(string sortOrder, string currentFilter, string searchString, int? page)
         {

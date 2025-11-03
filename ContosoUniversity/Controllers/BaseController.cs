@@ -9,11 +9,12 @@ namespace ContosoUniversity.Controllers
     public abstract class BaseController : Controller
     {
         protected SchoolContext db;
-        protected NotificationService notificationService = new NotificationService();
+        protected NotificationService notificationService;
 
-        public BaseController()
+        public BaseController(NotificationService notificationSvc)
         {
             db = SchoolContextFactory.Create();
+            notificationService = notificationSvc;
         }
 
         protected void SendEntityNotification(string entityType, string entityId, EntityOperation operation)

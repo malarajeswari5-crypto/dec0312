@@ -11,7 +11,10 @@ using Microsoft.AspNetCore.Mvc.ModelBinding;
 namespace ContosoUniversity.Controllers
 {
     public class DepartmentsController : BaseController
-    {
+       {
+    public DepartmentsController(ContosoUniversity.Services.NotificationService notificationService) : base(notificationService)
+           {
+           }
         // GET: Departments - All roles can view
         public ActionResult Index()
         {
