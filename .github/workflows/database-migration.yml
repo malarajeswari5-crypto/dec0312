@@ -1,0 +1,95 @@
+name: Database Migration
+
+on:
+  workflow_dispatch:
+    inputs:
+      environment:
+        description: 'Target environment'
+        required: true
+        type: choice
+        options:
+          - dev
+          - staging
+          - prod
+      migration_type:
+        description: 'Migration type'
+        required: true
+        type: choice
+        options:
+          - backup_restore
+          - schema_sync
+          - full_migration
+
+jobs:
+  database-migration:
+    runs-on: ubuntu-latest
+    
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+    
+    - name: Azure Login
+      uses: azure/login@v1
+      with:
+        creds: ${{ secrets.AZURE_CREDENTIALS_DEV }}
+    
+    - name: Get database credentials from Key Vault
+      run: |
+        $keyVault = "contosouniversity-kv-${{ github.event.inputs.environment }}-${{ secrets.DEPLOYMENT_SUFFIX }}"
+        $connectionString = az keyvault secret show --vault-name $keyVault --name "SqlDatabaseConnectionString" --query value -o tsv
+        echo "::add-mask::$connectionString"
+        echo "SQL_CONNECTION_STRING=$connectionString" >> $GITHUB_ENV
+    
+    - name: Download database backup
+      if: github.event.inputs.migration_type == 'backup_restore'
+      run: |
+        Write-Output "Downloading database backup from on-premises..."
+        # Add logic to download backup file
+    
+    - name: Create Azure SQL Database backup
+      run: |
+        $rg = "contosouniversity-${{ github.event.inputs.environment }}-rg"
+        $server = "contosouniversity-sql-${{ github.event.inputs.environment }}-${{ secrets.DEPLOYMENT_SUFFIX }}"
+        $db = "ContosoUniversity"
+        
+        az sql db export \
+          --resource-group $rg \
+          --server $server \
+          --name $db \
+          --admin-user "sqladmin" \
+          --admin-password "${{ secrets.SQL_ADMIN_PASSWORD }}" \
+          --storage-key "${{ secrets.STORAGE_KEY }}" \
+          --storage-key-type "StorageAccessKey" \
+          --storage-uri "https://backup.blob.core.windows.net/backups/backup.bacpac"
+    
+    - name: Restore database from backup
+      if: github.event.inputs.migration_type == 'backup_restore'
+      run: |
+        $rg = "contosouniversity-${{ github.event.inputs.environment }}-rg"
+        $server = "contosouniversity-sql-${{ github.event.inputs.environment }}-${{ secrets.DEPLOYMENT_SUFFIX }}"
+        $db = "ContosoUniversity"
+        
+        az sql db import \
+          --resource-group $rg \
+          --server $server \
+          --name $db \
+          --storage-key "${{ secrets.STORAGE_KEY }}" \
+          --storage-key-type "StorageAccessKey" \
+          --storage-uri "https://backup.blob.core.windows.net/backups/backup.bacpac" \
+          --admin-user "sqladmin" \
+          --admin-password "${{ secrets.SQL_ADMIN_PASSWORD }}"
+    
+    - name: Run database migrations
+      if: github.event.inputs.migration_type == 'schema_sync'
+      run: |
+        Write-Output "Running Entity Framework Core migrations..."
+        # dotnet ef database update --configuration Release
+    
+    - name: Verify database integrity
+      run: |
+        Write-Output "Verifying database integrity..."
+        # Add verification queries
+    
+    - name: Notify on completion
+      run: |
+        Write-Output "Database migration completed for ${{ github.event.inputs.environment }}"

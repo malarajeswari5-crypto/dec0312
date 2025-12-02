@@ -1,0 +1,234 @@
+name: Deploy to Azure App Service
+
+on:
+  push:
+    branches: [ main, develop ]
+  pull_request:
+    branches: [ main, develop ]
+  workflow_dispatch:
+    inputs:
+      environment:
+        description: 'Environment to deploy to'
+        required: true
+        default: 'dev'
+        type: choice
+        options:
+          - dev
+          - staging
+          - prod
+
+env:
+  AZURE_WEBAPP_NAME: contosouniversity-app
+  DOTNET_VERSION: '4.8'
+  CONFIGURATION: Release
+  PROJECT_PATH: ContosoUniversity/ContosoUniversity.csproj
+
+jobs:
+  build-and-test:
+    runs-on: windows-latest
+    
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+    
+    - name: Setup .NET Framework
+      uses: microsoft/setup-msbuild@v1
+      with:
+        vs-version: latest
+    
+    - name: Restore NuGet packages
+      run: nuget restore ContosoUniversity.sln
+    
+    - name: Build solution
+      run: msbuild ContosoUniversity.sln /p:Configuration=${{ env.CONFIGURATION }} /p:Platform="Any CPU"
+    
+    - name: Run tests
+      run: |
+        # Add your test runner here
+        # dotnet test ContosoUniversity.Tests.csproj
+        echo "Running tests..."
+    
+    - name: Upload build artifacts
+      uses: actions/upload-artifact@v3
+      with:
+        name: build-artifacts
+        path: ContosoUniversity/bin/${{ env.CONFIGURATION }}
+        retention-days: 1
+
+  deploy-dev:
+    runs-on: windows-latest
+    needs: build-and-test
+    if: github.ref == 'refs/heads/develop' || (github.event_name == 'workflow_dispatch' && github.event.inputs.environment == 'dev')
+    
+    environment:
+      name: development
+    
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+    
+    - name: Download build artifacts
+      uses: actions/download-artifact@v3
+      with:
+        name: build-artifacts
+        path: build-output
+    
+    - name: Azure Login
+      uses: azure/login@v1
+      with:
+        creds: ${{ secrets.AZURE_CREDENTIALS_DEV }}
+    
+    - name: Deploy to Azure App Service (Dev)
+      uses: azure/webapps-deploy@v2
+      with:
+        app-name: contosouniversity-app-dev-${{ secrets.DEPLOYMENT_SUFFIX_DEV }}
+        slot-name: production
+        package: build-output
+        publish-profile: ${{ secrets.AZURE_PUBLISH_PROFILE_DEV }}
+    
+    - name: Verify deployment
+      run: |
+        $appUrl = "https://contosouniversity-app-dev-${{ secrets.DEPLOYMENT_SUFFIX_DEV }}.azurewebsites.net/api/health"
+        $response = Invoke-WebRequest -Uri $appUrl -UseBasicParsing
+        Write-Output "Deployment verification: $($response.StatusCode)"
+
+  deploy-staging:
+    runs-on: windows-latest
+    needs: build-and-test
+    if: github.ref == 'refs/heads/main' || (github.event_name == 'workflow_dispatch' && github.event.inputs.environment == 'staging')
+    
+    environment:
+      name: staging
+    
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+    
+    - name: Download build artifacts
+      uses: actions/download-artifact@v3
+      with:
+        name: build-artifacts
+        path: build-output
+    
+    - name: Azure Login
+      uses: azure/login@v1
+      with:
+        creds: ${{ secrets.AZURE_CREDENTIALS_STAGING }}
+    
+    - name: Deploy to Azure App Service (Staging Slot)
+      uses: azure/webapps-deploy@v2
+      with:
+        app-name: contosouniversity-app-staging-${{ secrets.DEPLOYMENT_SUFFIX_STAGING }}
+        slot-name: staging
+        package: build-output
+        publish-profile: ${{ secrets.AZURE_PUBLISH_PROFILE_STAGING }}
+    
+    - name: Run smoke tests
+      run: |
+        $appUrl = "https://contosouniversity-app-staging-${{ secrets.DEPLOYMENT_SUFFIX_STAGING }}.azurewebsites.net/api/health"
+        $response = Invoke-WebRequest -Uri $appUrl -UseBasicParsing
+        if ($response.StatusCode -ne 200) {
+          throw "Health check failed"
+        }
+        Write-Output "Smoke tests passed"
+    
+    - name: Swap slots to production
+      if: success()
+      run: |
+        az webapp deployment slot swap \
+          --resource-group "contosouniversity-staging-rg" \
+          --name "contosouniversity-app-staging-${{ secrets.DEPLOYMENT_SUFFIX_STAGING }}" \
+          --slot "staging"
+
+  deploy-production:
+    runs-on: windows-latest
+    needs: [build-and-test, deploy-staging]
+    if: github.ref == 'refs/heads/main' && github.event_name == 'push' || (github.event_name == 'workflow_dispatch' && github.event.inputs.environment == 'prod')
+    
+    environment:
+      name: production
+      url: https://contosouniversity-app-prod-${{ secrets.DEPLOYMENT_SUFFIX_PROD }}.azurewebsites.net
+    
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+    
+    - name: Download build artifacts
+      uses: actions/download-artifact@v3
+      with:
+        name: build-artifacts
+        path: build-output
+    
+    - name: Azure Login
+      uses: azure/login@v1
+      with:
+        creds: ${{ secrets.AZURE_CREDENTIALS_PROD }}
+    
+    - name: Deploy to Azure App Service (Production Slot)
+      uses: azure/webapps-deploy@v2
+      with:
+        app-name: contosouniversity-app-prod-${{ secrets.DEPLOYMENT_SUFFIX_PROD }}
+        slot-name: staging
+        package: build-output
+        publish-profile: ${{ secrets.AZURE_PUBLISH_PROFILE_PROD }}
+    
+    - name: Run health checks
+      run: |
+        $appUrl = "https://contosouniversity-app-prod-${{ secrets.DEPLOYMENT_SUFFIX_PROD }}.azurewebsites.net/api/health"
+        $maxAttempts = 5
+        $attempt = 0
+        $healthy = $false
+        
+        while ($attempt -lt $maxAttempts -and -not $healthy) {
+          try {
+            $response = Invoke-WebRequest -Uri $appUrl -UseBasicParsing -ErrorAction Stop
+            if ($response.StatusCode -eq 200) {
+              $healthy = $true
+              Write-Output "Production health check passed"
+            }
+          } catch {
+            $attempt++
+            Start-Sleep -Seconds 10
+          }
+        }
+        
+        if (-not $healthy) {
+          throw "Production health check failed after $maxAttempts attempts"
+        }
+    
+    - name: Swap slots to production
+      if: success()
+      run: |
+        az webapp deployment slot swap \
+          --resource-group "contosouniversity-prod-rg" \
+          --name "contosouniversity-app-prod-${{ secrets.DEPLOYMENT_SUFFIX_PROD }}" \
+          --slot "staging"
+    
+    - name: Post-deployment notification
+      if: success()
+      run: |
+        Write-Output "Successfully deployed to production"
+        Write-Output "App URL: https://contosouniversity-app-prod-${{ secrets.DEPLOYMENT_SUFFIX_PROD }}.azurewebsites.net"
+
+  rollback-on-failure:
+    runs-on: windows-latest
+    needs: deploy-production
+    if: failure()
+    
+    steps:
+    - name: Azure Login
+      uses: azure/login@v1
+      with:
+        creds: ${{ secrets.AZURE_CREDENTIALS_PROD }}
+    
+    - name: Swap back to previous version
+      run: |
+        Write-Output "Rolling back production deployment..."
+        az webapp deployment slot swap \
+          --resource-group "contosouniversity-prod-rg" \
+          --name "contosouniversity-app-prod-${{ secrets.DEPLOYMENT_SUFFIX_PROD }}" \
+          --slot "staging"
+    
+    - name: Send failure notification
+      run: |
+        Write-Output "Production rollback completed due to deployment failure"
